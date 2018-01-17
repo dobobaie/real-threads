@@ -5,6 +5,11 @@ var ChildThreads = function()
 {
 	var $enum = {
 		NONE: null,
+		STATUS: {
+			WAITING: 'waiting',
+			RUNNING: 'running',
+			FINISH: 'finish',
+		},
 		STATUS_MESSAGE: {
 			START: 'start',
 			MESSAGE: 'message',
@@ -30,17 +35,16 @@ var ChildThreads = function()
 			}
 		}
 
+		_engine.status = $enum.STATUS.RUNNING;
+
 		process.stdout.write(JSON.stringify({
 			type: $enum.STATUS_MESSAGE.START,
 			pid: proc.pid,
 		}));
 
-		process.stdin.on('data', (data) => {
+		process.stdout.on('data', (data) => {
 			console.log('CHILD got message:', data.toString());
 		});
-
-		console.log('ici');
-		for (var i=0;i<=10000000000;i++);
 	}
 
 	this.run = function()
@@ -56,16 +60,40 @@ var ChildThreads = function()
 	
 	this.send = function(data)
 	{
-		//
+		process.stdout.write(JSON.stringify({
+			type: $enum.STATUS_MESSAGE.MESSAGE,
+			pid: data,
+		}));
+		return _engine.this;
 	}
 
-	this.wait = function(callback, removeAftercalled)
+	this.kill = function(signal)
 	{
-		//
+		if (_engine.status === $enum.STATUS.RUNNING) {
+			_engine.status = $enum.STATUS.FINISH;
+			process.kill(_engine.pid);
+		}
+		return _engine.this;
+	}
+
+	this.wait = function(callback, removeAfterCall)
+	{
+		return _engine.this.on('wait', callback, removeAfterCall);
+	}
+
+	this.on = function(type, callback, removeAfterCall)
+	{
+		_engine.callbacks.push({
+			type: type,
+			callback: callback,
+			removeAfterCall: removeAfterCall,
+		});
+		return _engine.this;
 	}
 
 	var _engine = {
 		this: this,
+		status: $enum.STATUS.WAITING,
 		pid: proc.pid,
 		infos_process: {
 			parentpid: null,
@@ -73,6 +101,7 @@ var ChildThreads = function()
 			defaultName: null,
 			nameIsNull: false,
 		},
+		callbacks: [],
 	};
 
 	return _engine.this;

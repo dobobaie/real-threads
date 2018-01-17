@@ -54,14 +54,14 @@ var Threads = function()
 			}
 
 			var process = new $process(name);
-			process = process.init($enum.TYPE.CHILD, _engine);
+			process = process.init($enum.TYPE.CHILD, _engine.this);
 			process.set(callback, data);
 		
 			if (name !== null) {
 				_engine.this[name] = process;
 			}
 
-			return _engine.this[name];
+			return process;
 		}
 
 		this.join = function(callback, data)
@@ -85,7 +85,6 @@ var Threads = function()
 				break;
 				case $enum.TYPE.CHILD:
 					_engine.status = $enum.STATUS.WAITING;
-					delete _engine.this.kill;
 					delete _engine.this.complete;
 					delete _engine.this.create;
 					delete _engine.this.join;
@@ -114,11 +113,11 @@ var Threads = function()
 						_engine.status = $enum.STATUS.RUNNING;
 						$execCallbacks('ready', _engine.pid);
 						return ;
-					}
-
-					if (instructions.type === $enum.STATUS_MESSAGE.RELEASE) {
+					} else if (instructions.type === $enum.STATUS_MESSAGE.RELEASE) {
 						$execCallbacks('wait', instructions.data);
 						return ;
+					} else {
+						$execCallbacks('data', instructions.data);
 					}
 
 				} catch (e) {
@@ -127,7 +126,6 @@ var Threads = function()
 			});
 
 			_engine.process.stderr.on('data', function(data) {
-				console.log('ici2', data.toString());
 				$execCallbacks('err', data.toString());
 			});
 
@@ -153,7 +151,7 @@ var Threads = function()
 		this.send = function(data)
 		{
 			if (_engine.status === $enum.STATUS.RUNNING) {
-				_engine.process.stdin.write(JSON.stringify({
+				_engine.process.stdout.write(JSON.stringify({
 					type: $enum.STATUS_MESSAGE.MESSAGE,
 					data: data,
 				}));
@@ -163,6 +161,10 @@ var Threads = function()
 
 		this.kill = function(pid, signal)
 		{
+			if (_engine.type === $enum.TYPE.CHILD) {
+				return _engine.parent.kill(_engine.pid, signal);
+			}
+
 			var copyCallback = _engine.childrens;
 			_engine.childrens = [];
 			for (var index in copyCallback) {
