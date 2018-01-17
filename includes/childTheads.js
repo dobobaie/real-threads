@@ -30,7 +30,7 @@ var ChildThreads = function()
 			}
 		}
 
-		process.stdin.write(JSON.stringify({
+		process.stdout.write(JSON.stringify({
 			type: $enum.STATUS_MESSAGE.START,
 			pid: proc.pid,
 		}));

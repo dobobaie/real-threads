@@ -99,30 +99,31 @@ var Threads = function()
 		{
 			_engine.process = spawn('node', [__dirname + '/includes/join.js', filename, _engine.pid, _engine.name, (typeof(_engine.name) === 'string' ? 'true' : 'false')]);
 
-			_engine.process.stdin.on('data', (data) =>
+			_engine.process.stdout.on('data', function(data)
 			{
-				var instructions = JSON.parse(data.toString());
-				
-				console.log(instructions);
+				try
+				{
+					var instructions = JSON.parse(data.toString());
+					
+					if (instructions.type === undefined) {
+						throw 'Bad instruction';
+					}
 
-				if (_engine.status === $enum.STATUS.WAITING) {
-					_engine.pid = instructions.pid;
-					_engine.status = $enum.STATUS.RUNNING;
-					$execCallbacks('ready', _engine.pid);
-					return ;
-				}
+					if (_engine.status === $enum.STATUS.WAITING) {
+						_engine.pid = instructions.pid;
+						_engine.status = $enum.STATUS.RUNNING;
+						$execCallbacks('ready', _engine.pid);
+						return ;
+					}
 
-				if (instructions.type === $enum.STATUS_MESSAGE.RELEASE) {
-					$execCallbacks('wait', instructions.data);
-					return ;
-				}
+					if (instructions.type === $enum.STATUS_MESSAGE.RELEASE) {
+						$execCallbacks('wait', instructions.data);
+						return ;
+					}
 
-				$execCallbacks('data', instructions.data);
-			});
-
-			_engine.process.stdout.on('data', function(data) {
-				console.log('ici', data.toString());
-				$execCallbacks('out', data.toString());
+				} catch (e) {
+					return $execCallbacks('out', data.toString());
+				}				
 			});
 
 			_engine.process.stderr.on('data', function(data) {
@@ -227,12 +228,13 @@ var Threads = function()
 			_engine.callbacks = [];
 			for (var index in copyCallback) {
 				if (copyCallback[index].type !== type) {
+					_engine.callbacks.push(copyCallback[index]);
 					continue ;
 				}
 				if (typeof(copyCallback[index].removeAfterCall) == 'boolean' && copyCallback[index].removeAfterCall == false) {
 					_engine.callbacks.push(copyCallback[index]);
 				}
-				copyCallback[index].callback(data);
+				copyCallback[index].callback(_engine.this, data);
 			}
 		}
 
