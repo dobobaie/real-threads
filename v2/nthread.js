@@ -12,6 +12,7 @@ const mevent = require(__dirname + '/mevent');
 const $childProcess = (options, listThreads) => function(guid)
 {
 	this.guid = guid;
+	
 	this.send = (data) => 
 	{
 		if (!listThreads[guid].serverStatus) {
@@ -24,26 +25,34 @@ const $childProcess = (options, listThreads) => function(guid)
 		});
 		return this;
 	}
+	
 	this.on = mevent(`child_${guid}`).on;
+	
 	this.ready = (cb) => mevent(`child_${guid}`).on('ready', cb, { onlyData: true });
+	
 	this.response = (cb) => mevent(`child_${guid}`).on('response', cb, { onlyData: true });
+	
 	this.stdout = (cb) => mevent(`child_${guid}`).on('stdout', cb, { isUnique: false, onlyData: true });
+	
 	this.stderr = (cb) => mevent(`child_${guid}`).on('stderr', cb, { isUnique: false, onlyData: true });
+	
 	this.exit = (cb) => mevent(`child_${guid}`).on('exit', cb, { isUnique: false, onlyData: true });		
+	
 	this.disconnect = () => {
 		// déconnecter le client
 		// supprimer le fichier
 	};
 };
 
-const $parentProcess = (options, listThreads) => (ip, port) => ({
-	connect: async (...arguments) => {
+const $parentProcess = (options, listThreads) => function(ip, port)
+{
+	this.connect = async (...arguments) => {
 		//
-	},
-	create: async (...arguments) => {
-		let threadCode = arguments[0];
+	}
+
+	const createChild = (...arguments) => (isFile) => {
+		let threadCode = (isFile === true ? fs.readFileSync(arguments[0]).toString() : arguments[0]);
 		let threadParams = arguments.filter((value, key) => key !== 0);
-		
 		let guid = uuidv4();
 		listThreads[guid] = {
 			guid: guid,
@@ -60,12 +69,17 @@ const $parentProcess = (options, listThreads) => (ip, port) => ({
 		listThreads[guid].spawn.on('exit', async (data) => mevent(`child_${guid}`).resolve('exit', data.toString()));
 
 		return new ($childProcess(options, listThreads))(guid);
-	},
-	disconnect: async () => {
+	};
+
+	this.create = async (...arguments) => createChild(...arguments)(false);
+	
+	this.load = async (...arguments) => createChild(...arguments)(true);
+	
+	this.disconnect = async () => {
 		// déconnecter tout les clients
 		// supprimer les fichiers tmp
-	},
-});
+	};
+};
 
 const $process = async (options) =>
 {
@@ -119,7 +133,7 @@ const $process = async (options) =>
 
 	server.listen(port, (err, data) => (err
 		? mevent('parent').reject('ready', err)
-		: mevent('parent').resolve('ready', $parentProcess(options, listThreads)(ip, port))
+		: mevent('parent').resolve('ready', new ($parentProcess(options, listThreads))(ip, port))
 	));
 
 	return  mevent('parent').on('ready');
