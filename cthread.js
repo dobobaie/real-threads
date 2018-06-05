@@ -12,7 +12,7 @@ const $childProcess = (guid, socket) => function(params)
 		content: data,
 	});
 	
-	this.response = (cb) => mevent('cchild').on('response', cb, { onlyData: true, cache: true, removeCache: true });
+	this.response = (cb) => mevent('cchild').on('response', cb, { onlyData: true, cache: true, removeCache: true, promise: true });
 }
 
 const $process = async (options) =>
@@ -43,5 +43,5 @@ const $process = async (options) =>
 
 module.exports = (options) => ({
 	$process: $process(options),
-	ready: (cb) => mevent('croot').on('ready', cb, { onlyData: true, cache: true }),
+	ready: (cb) => mevent('croot').on('ready', cb, { isUnique: false, onlyData: true, cache: true, promise: true }),
 });

@@ -38,13 +38,13 @@ const $childProcess = (options, listThreads) => function(guid, params)
 	
 	this.on = mevent(`child_${guid}`).on;
 	
-	this.ready = (cb) => mevent(`child_${guid}`).on('ready', cb, { onlyData: true, cache: true });
+	this.ready = (cb) => mevent(`child_${guid}`).on('ready', cb, { onlyData: true, cache: true, promise: true });
 	
-	this.response = (cb) => mevent(`child_${guid}`).on('response', cb, { onlyData: true });
+	this.response = (cb) => mevent(`child_${guid}`).on('response', cb, { onlyData: true, promise: true });
 	
-	this.stdout = (cb) => mevent(`child_${guid}`).on('stdout', cb, { isUnique: false, onlyData: true });
+	this.stdout = (cb) => mevent(`child_${guid}`).on('stdout', cb, { isUnique: false, onlyData: true, promise: true });
 	
-	this.stderr = (cb) => mevent(`child_${guid}`).on('stderr', cb, { isUnique: false, onlyData: true });
+	this.stderr = (cb) => mevent(`child_${guid}`).on('stderr', cb, { isUnique: false, onlyData: true, promise: true });
 	
 	this.exit = (cb) => mevent(`child_${guid}`).on('exit', cb, { isUnique: false, onlyData: true, cache: true });		
 	
@@ -86,7 +86,7 @@ const $parentProcess = (options, listThreads) => function(ip, port)
 	this.address = `${options.protocol}${ip}:${port}`;
 	this.localAddress = `${options.protocol}${this.localIp}:${port}`;
 
-	this.connection = async (cb) => mevent('mparent').on('connection', cb, { isUnique: false, onlyData: true });
+	this.connection = async (cb) => mevent('mparent').on('connection', cb, { isUnique: false, onlyData: true, promise: true });
 
 	const createChild = (...arguments) => (isFile) => {
 		let threadCode = (isFile === true ? fs.readFileSync(arguments[0]).toString() : arguments[0]);
@@ -184,5 +184,5 @@ const $process = async (options) =>
 
 module.exports = (options) => ({
 	$process: $process(options),
-	ready: (cb) => mevent('mroot').on('ready', cb, { onlyData: true, cache: true }),
+	ready: (cb) => mevent('mroot').on('ready', cb, { isUnique: false, onlyData: true, cache: true, promise: true }),
 });
