@@ -50,10 +50,7 @@ jspm_packages
 .idea
 
 # Project
-private/uploads
-dist/*
-libs/*
 *.log
 tmp/
 logs/
-process/
+generated/
