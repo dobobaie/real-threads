@@ -1,7 +1,7 @@
 {
   "name": "nthread-js",
-  "version": "0.0.1",
-  "description": "Create real thread in Node Js",
+  "version": "0.0.2",
+  "description": "Create real thread in Node Js from a lambda, file or external app",
   "main": "nthread.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

@@ -1,5 +1,5 @@
 # Nthread JS
-Create real thread in Node Js
+Create real thread in Node Js from a lambda, file or external app
 
 ## Install
 
@@ -60,7 +60,8 @@ nthread.ready(async (mthread) => // Waiting of the starting process [Parent in M
 | address                                                 | String            | Get local uri
 | localAddress                                            | String            | Get local uro
 | connect(string: uri, any: param1, ...) : Promise        | Function: Promise | Make a connection to an external thread/app
-| create(function: callback, any: param1, ...) : Promise  | Function: Promise | Create a new thread with a callback
+| create(function: callback, any: param1, ...) : Promise  | Function: Promise | Create a new thread from a callback
+| load(string: filePath, any: param1, ...) : Promise      | Function: Promise | Create a new thread from a file
 | connection(function: callback) : Promise                | Function: Promise | Wait a new external connection
 | exit(number: code = 0)                                  | Function          | Close all thread and all connection
 
