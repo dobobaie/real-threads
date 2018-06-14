@@ -12,8 +12,7 @@ nthread.ready(async (mthread) =>
 		}, 'testOne', 'testTwo');
 
 		child.stdout((data) => {
-			// console.log('child stdout', data);
-			console.log(data);
+			console.log('child stdout', data);
 		});
 
 		child.stderr((data) => {
@@ -28,6 +27,8 @@ nthread.ready(async (mthread) =>
 		let cres = await child.response();
 		console.log('ROOT', cres);
 		child.send(`Now I'm sending a message to my child`);
+
+		setTimeout(() => {console.log('Exit system'),mthread.exit()}, 3000);
 
 	} catch (e) { console.log(e); mthread.disconnect(); }
 

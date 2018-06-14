@@ -50,8 +50,17 @@ const $childProcess = (options, listThreads) => function(guid, params)
 	this.exit = (cb) => eventm(`child_${guid}`).on('exit', cb, { isUnique: false, onlyData: true, cache: true });		
 	
 	this.disconnect = () => {
-		// déconnecter le client
-		// supprimer le fichier
+		if (listThreads[guid].serverStatus) {
+			listThreads[guid].socket.disconnect();
+		}
+		listThreads[guid].socket = null;
+		listThreads[guid].serverStatus = false;
+		listThreads[guid].process = null;
+		if (listThreads[guid].spawn) {
+			listThreads[guid].spawn.stdin.pause();
+			listThreads[guid].spawn.kill();
+			listThreads[guid].spawn = null;
+		}
 	};
 };
 
@@ -62,6 +71,7 @@ const generateIdentity = (listThreads) => (isExternal) => {
 		serverStatus: false,
 		spawn: null,
 		socket: null,
+		process: null,
 		isExternal: isExternal,
 	};
 	return guid;
@@ -99,19 +109,22 @@ const $parentProcess = (options, listThreads) => function(ip, port)
 		listThreads[guid].spawn = spawn('node', [`${tempDir}/${options.tmpFolder}/${guid}.js`]);
 		listThreads[guid].spawn.stdout.on('data', async (data) => eventm(`child_${guid}`).resolve('stdout', data.toString()));
 		listThreads[guid].spawn.stderr.on('data', async (data) => eventm(`child_${guid}`).resolve('stderr', data.toString()));
-		listThreads[guid].spawn.on('exit', async (data) => eventm(`child_${guid}`).resolve('exit', data.toString()));
+		listThreads[guid].spawn.on('exit', async (data) => eventm(`child_${guid}`).resolve('exit', (data ? data.toString() : null)));
 		listThreads[guid].spawn.on('close', async () => fs.unlinkSync(`${tempDir}/${options.tmpFolder}/${guid}.js`));
+		listThreads[guid].process = new ($childProcess(options, listThreads))(guid);
 
-		return new ($childProcess(options, listThreads))(guid);
+		return listThreads[guid].process;
 	};
 
 	this.create = async (...arguments) => createChild(...arguments)(false);
 	
 	this.load = async (...arguments) => createChild(...arguments)(true);
 	
-	this.disconnect = async () => {
-		// déconnecter tout les clients
-		// supprimer les fichiers tmp
+	this.exit = async (code) => {
+		for (var guid in listThreads) {
+			await listThreads[guid].process.disconnect();
+		}
+		process.exit(code || 0);
 	};
 };
 
@@ -168,8 +181,10 @@ const $process = async (options) =>
 			eventm(`child_${clientGuid}`).resolve('response', data.content);
 		});
 
-		client.on('disconnect', () => {
-			listThreads[clientGuid].serverStatus = false;
+		client.on('disconnect', async () => {
+			if (listThreads[clientGuid].process) {
+				await listThreads[clientGuid].process.disconnect();	
+			}
 			delete listThreads[clientGuid];
 			clientGuid = null;
 		});

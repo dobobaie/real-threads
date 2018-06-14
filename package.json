@@ -1,17 +1,25 @@
 {
-  "name": "nthread",
+  "name": "nthread-js",
   "version": "0.0.1",
-  "description": "Create real thread in NodeJs",
+  "description": "Create real thread in Node Js",
   "main": "nthread.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dobobaie/nthread-js.git"
   },
   "keywords": [
     "thread",
     "socket",
     "process",
     "system",
-    "connection"
+    "connection",
+    "nthread-js",
+    "mutex",
+    "lock",
+    "multi"
   ],
   "author": "Dobobaie",
   "license": "ISC",
@@ -23,5 +31,9 @@
     "socket.io-client": "^2.1.1",
     "temp-dir": "^1.0.0",
     "uuid": "^3.2.1"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/dobobaie/nthread-js/issues"
+  },
+  "homepage": "https://github.com/dobobaie/nthread-js#readme"
 }
