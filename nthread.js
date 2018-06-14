@@ -80,7 +80,7 @@ const generateIdentity = (listThreads) => (isExternal) => {
 const $parentProcess = (options, listThreads) => function(ip, port)
 {
 	this.options = options;
-	
+
 	this.connect = async (...arguments) => cthread({
 		guid: null,
 		uri: arguments[0],
@@ -141,7 +141,6 @@ const $process = async (options) =>
 
 	let listThreads = {};
 
-	// let ip = await publicIp.v4();
 	let ip = await publicIp.v4().catch(err => '127.0.0.1');
 	let port = (options.port ? options.port : await getPort());
 

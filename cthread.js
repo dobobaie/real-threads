@@ -35,9 +35,7 @@ const $process = async (options) =>
 		eventm('cchild').resolve('response', data.content)
 	});
 
-	socket.on('disconnect', () => {
-		console.log('disconnect');
-	});
+	socket.on('disconnect', () => { /* Disconnect */ });
 }
 
 module.exports = (options) => ({
