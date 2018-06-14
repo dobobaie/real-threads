@@ -6,9 +6,10 @@ const io = require('socket.io');
 const spawn = require('child_process').spawn;
 const uuidv4 = require('uuid/v4');
 const tempDir = require('temp-dir');
+const eventm = require('eventm');
 
 const cthread = require(__dirname + '/cthread');
-const mevent = require(__dirname + '/mevent');
+
 
 const $buildCode = (guid, uri) => (threadParams, threadCode) => `
 	require('${__dirname.replace(/\\/g, '/')}/cthread')({
@@ -26,7 +27,7 @@ const $childProcess = (options, listThreads) => function(guid, params)
 	this.send = (data) =>
 	{
 		if (!listThreads[guid].serverStatus) {
-			return mevent(`child_${guid}`).on('ready', () => listThreads[guid].socket.emit('msg', {
+			return eventm(`child_${guid}`).on('ready', () => listThreads[guid].socket.emit('msg', {
 				content: data,
 			}));
 		}
@@ -36,17 +37,17 @@ const $childProcess = (options, listThreads) => function(guid, params)
 		return this;
 	}
 	
-	this.on = mevent(`child_${guid}`).on;
+	this.on = eventm(`child_${guid}`).on;
 	
-	this.ready = (cb) => mevent(`child_${guid}`).on('ready', cb, { onlyData: true, cache: true, promise: true });
+	this.ready = (cb) => eventm(`child_${guid}`).on('ready', cb, { onlyData: true, cache: true, promise: true });
 	
-	this.response = (cb) => mevent(`child_${guid}`).on('response', cb, { onlyData: true, promise: true });
+	this.response = (cb) => eventm(`child_${guid}`).on('response', cb, { onlyData: true, promise: true });
 	
-	this.stdout = (cb) => mevent(`child_${guid}`).on('stdout', cb, { isUnique: false, onlyData: true, promise: true });
+	this.stdout = (cb) => eventm(`child_${guid}`).on('stdout', cb, { isUnique: false, onlyData: true, promise: true });
 	
-	this.stderr = (cb) => mevent(`child_${guid}`).on('stderr', cb, { isUnique: false, onlyData: true, promise: true });
+	this.stderr = (cb) => eventm(`child_${guid}`).on('stderr', cb, { isUnique: false, onlyData: true, promise: true });
 	
-	this.exit = (cb) => mevent(`child_${guid}`).on('exit', cb, { isUnique: false, onlyData: true, cache: true });		
+	this.exit = (cb) => eventm(`child_${guid}`).on('exit', cb, { isUnique: false, onlyData: true, cache: true });		
 	
 	this.disconnect = () => {
 		// déconnecter le client
@@ -86,7 +87,7 @@ const $parentProcess = (options, listThreads) => function(ip, port)
 	this.address = `${options.protocol}${ip}:${port}`;
 	this.localAddress = `${options.protocol}${this.localIp}:${port}`;
 
-	this.connection = async (cb) => mevent('mparent').on('connection', cb, { isUnique: false, onlyData: true, promise: true });
+	this.connection = async (cb) => eventm('mparent').on('connection', cb, { isUnique: false, onlyData: true, promise: true });
 
 	const createChild = (...arguments) => (isFile) => {
 		let threadCode = (isFile === true ? fs.readFileSync(arguments[0]).toString() : arguments[0]);
@@ -96,9 +97,9 @@ const $parentProcess = (options, listThreads) => function(ip, port)
 		fs.writeFileSync(`${tempDir}/${options.tmpFolder}/${guid}.js`, $buildCode(guid, this.localAddress)(JSON.stringify(threadParams), threadCode.toString()));
 
 		listThreads[guid].spawn = spawn('node', [`${tempDir}/${options.tmpFolder}/${guid}.js`]);
-		listThreads[guid].spawn.stdout.on('data', async (data) => mevent(`child_${guid}`).resolve('stdout', data.toString()));
-		listThreads[guid].spawn.stderr.on('data', async (data) => mevent(`child_${guid}`).resolve('stderr', data.toString()));
-		listThreads[guid].spawn.on('exit', async (data) => mevent(`child_${guid}`).resolve('exit', data.toString()));
+		listThreads[guid].spawn.stdout.on('data', async (data) => eventm(`child_${guid}`).resolve('stdout', data.toString()));
+		listThreads[guid].spawn.stderr.on('data', async (data) => eventm(`child_${guid}`).resolve('stderr', data.toString()));
+		listThreads[guid].spawn.on('exit', async (data) => eventm(`child_${guid}`).resolve('exit', data.toString()));
 		listThreads[guid].spawn.on('close', async () => fs.unlinkSync(`${tempDir}/${options.tmpFolder}/${guid}.js`));
 
 		return new ($childProcess(options, listThreads))(guid);
@@ -122,7 +123,7 @@ const $process = async (options) =>
 	options.enableSocket = (options.enableSocket !== undefined ? options.enableSocket : true);
 
 	if (!options.enableSocket) {
-		return mevent('mroot').resolve('ready', new ($parentProcess(options))());	
+		return eventm('mroot').resolve('ready', new ($parentProcess(options))());	
 	}
 
 	let listThreads = {};
@@ -156,15 +157,15 @@ const $process = async (options) =>
 			client.emit('hello');
 
 			(listThreads[clientGuid].isExternal
-			? mevent('mparent').resolve('connection', new ($childProcess(options, listThreads))(data.guid, data.params))
-			: mevent(`child_${clientGuid}`).resolve('ready'));
+			? eventm('mparent').resolve('connection', new ($childProcess(options, listThreads))(data.guid, data.params))
+			: eventm(`child_${clientGuid}`).resolve('ready'));
 		});
 		
 		client.on('msg', (data) => {
 			if (clientGuid === null) {
 				return ;
 			}
-			mevent(`child_${clientGuid}`).resolve('response', data.content);
+			eventm(`child_${clientGuid}`).resolve('response', data.content);
 		});
 
 		client.on('disconnect', () => {
@@ -175,14 +176,14 @@ const $process = async (options) =>
 	});
 
 	server.listen(port, (err, data) => (err
-		? mevent('mroot').reject('ready', err)
-		: mevent('mroot').resolve('ready', new ($parentProcess(options, listThreads))(ip, port))
+		? eventm('mroot').reject('ready', err)
+		: eventm('mroot').resolve('ready', new ($parentProcess(options, listThreads))(ip, port))
 	));
 
-	return  mevent('mroot').on('ready');
+	return  eventm('mroot').on('ready');
 }
 
 module.exports = (options) => ({
 	$process: $process(options),
-	ready: (cb) => mevent('mroot').on('ready', cb, { isUnique: false, onlyData: true, cache: true, promise: true }),
+	ready: (cb) => eventm('mroot').on('ready', cb, { isUnique: false, onlyData: true, cache: true, promise: true }),
 });
