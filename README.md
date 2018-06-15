@@ -57,12 +57,12 @@ nthread.ready(async (mthread) => // Waiting of the starting process [Parent in M
 | ip                                                      | String            | Get public ip
 | localIp                                                 | String            | Get local ip
 | port                                                    | String            | Get port
-| address                                                 | String            | Get local uri
-| localAddress                                            | String            | Get local uro
-| connect(string: uri, any: param1, ...) : Promise        | Function: Promise | Make a connection to an external thread/app
-| create(function: callback, any: param1, ...) : Promise  | Function: Promise | Create a new thread from a callback
-| load(string: filePath, any: param1, ...) : Promise      | Function: Promise | Create a new thread from a file
-| connection(function: callback) : Promise                | Function: Promise | Wait a new external connection
+| address                                                 | String            | Get public uri
+| localAddress                                            | String            | Get local uri
+| connect(string: uri, any: param1, ...) : Promise        | Function: Promise | Create a new connection to an external app
+| create(function: callback, any: param1, ...) : Promise  | Function: Promise | Create a new thread from the callback
+| load(string: filePath, any: param1, ...) : Promise      | Function: Promise | Create a new thread from the file
+| connection(function: callback) : Promise                | Function: Promise | Event called for each new external connection
 | exit(number: code = 0)                                  | Function          | Close all thread and all connection
 
 
@@ -72,12 +72,12 @@ nthread.ready(async (mthread) => // Waiting of the starting process [Parent in M
 | ---------------------------------------- | ------------------| ------------
 | guid                                     | String            | Get guid of child
 | params                                   | String            | Recover your initial parameters set from child thread
-| send(any: data)                          | Function          | Send data to the main thread
-| response(function: callback) : Promise   | Function: Promise | Wait response from the main thread
-| ready(function: callback) : Promise      | Function: Promise | It's an event called after child has finished to initialised
-| stdout(function: callback) : Promise     | Function: Promise | It's an event called if the thread write in process (ex: console.log)
-| stderr(function: callback) : Promise     | Function: Promise | It's an event called if the thread have an error in process (ex: console.error)
-| exit(function: callback) : Promise       | Function: Promise | It's an event called if the thread process has exit
+| send(any: data)                          | Function          | Send data to the child thread
+| response(function: callback) : Promise   | Function: Promise | Event called for each response from child thread
+| ready(function: callback) : Promise      | Function: Promise | Event called when the child has finished to initialised
+| stdout(function: callback) : Promise     | Function: Promise | Event called when the child thread write in process (ex: console.log)
+| stderr(function: callback) : Promise     | Function: Promise | Event called when the child thread have an error in process (ex: console.error)
+| exit(function: callback) : Promise       | Function: Promise | Event called when the child thread process has exit
 | disconnect()                             | Function          | Close child connection
 
 ## Functions in Children Thread

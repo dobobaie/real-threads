@@ -1,6 +1,6 @@
 {
   "name": "nthread-js",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Create real thread in Node Js from a lambda, file or external app",
   "main": "nthread.js",
   "scripts": {
