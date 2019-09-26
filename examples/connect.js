@@ -1,17 +1,16 @@
-const nthread = require('../nthread')({ enableSocket: false });
+const { connect } = require('../index');
 
-nthread.ready(async (mthread) =>
-{
-	try
-	{
-		const thread = await mthread.connect('http://127.0.0.1:6000', 'testOne', 'testTwo');
+console.log("[root] - Run connect");
 
-		console.log('Connected');
+connect("http://127.0.0.1:3000", { debug: false })
+  .then(thread => {
+    console.log("[root] - Client connected from " + thread.getGuuid());
 
-		let cres = await thread.response();
-		console.log('CHILD', cres);
-		thread.send(`Now I'm sending a message to my child`);
+    thread.response(content => {
+      console.log('[root] - message read from thread : "', content, '"');
+    });
 
-	} catch (e) { console.log(e); mthread.disconnect(); }
+    thread.send("Hello world =)");
 
-}).catch(err => console.log(err));
+    // thread.close();
+  });

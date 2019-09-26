@@ -1,89 +1,133 @@
 # Nthread JS
-Create real thread in Node Js from a lambda, file or external app
+Create easily threads in NodeJs. The purpose is to delegate some part of your code in own processus.  
+It means that the code is executed in another process, thread, and give you the possibility to communicate with the main process.
+  
+⚠ Be careful ⚠  
+Don't try to make an infinite loop during the creation of the thread.  
+Obviously, your server/computer will be affected by the number of threads.  
 
-## Install
+## ☁️ Installation
 
-``` bash
-npm install --save nthread-js
+```
+$ npm install nthread-js
+```
+  
+## ⚙️ Examples
 
-``` 
+``` js  
+const { listen } = require('nthread-js');
 
-## Usage
-``` js
-const nthread = require('nthread-js')( /* options */ ); // Initialize with option
+console.log("[root] - Run listen");
 
-nthread.ready(async (mthread) => // Waiting of the starting process [Parent in Main Thread]
-{
-	// create a new thread from lambda [Child in Main Thread]
-	let child = await mthread.create(async (thread) => { 
-		let params = thread.params;
-		thread.send(`Now I'm sending child params : ${JSON.stringify(params)}`);
-		let pres = await thread.response();
-		console.log('CHILD', pres);
-	}, 'testOne', 'testTwo');
+listen(3000, { debug: false })
+  .then(async nthread => {
+    console.log("[root] - Server connected");
+    console.log("[root] - public uri", nthread.getPublicUri());
+    console.log("[root] - local uri", nthread.getLocalUri());
 
-	// Listen stdout of child
-		child.stdout((data) => {
-		console.log('child stdout', data);
-	});
-	
-	// Process main thread
-	await child.ready();
-	let cres = await child.response();
-	console.log('ROOT', cres);
-	child.send(`Now I'm sending a message to my child`);
+    nthread.response(data => {
+      console.log('[root] - message read from nthread : "', data.content, '" by "', data.guuid, '"');
+      nthread.getByGuuid(data.guuid).send("Welcome from root =)");
+    });
 
-	setTimeout(() => { console.log('Exit system'),mthread.exit() }, 3000);
+    // ---
+    const child = await nthread.create(thread => {
+      thread.log('[child] - Child is now connected with PID: ' + thread.getPid());
 
-}).catch(err => console.log(err));
+      thread.response(content => {
+        thread.log('[child] - message read from thread : "', content, '"');
+      });
 
+      thread.send("Hello I'm Child =)");
+    });
+    
+    child.response(content => {
+      console.log('[root] - message read from child : "', content, '"');
+    });
+    // ---
+
+    nthread.getByGuuid(child.getGuuid()).send("Hey Child, how are you?");
+
+    // nthread.close();
+  });
 ```
 
 [More examples](https://github.com/dobobaie/nthread-js/tree/master/examples)
+   
+## 📝 Usage `listen(string: port, object: options = undefined)`
 
-## `Options` from Main Thread
+## `Options`
 
-| Name                      | Type     | Description         
-| ------------------------- | -------- | ------------
-| tmpFolder = 'generated'   | String   | Name of folder who's all temporary files is saved 
-| protocol = 'http://'      | String   | Protocol
-| enableSocket = true       | Boolean  | `If enable socket is false so only connect function is available in parent`
-| port = random             | Number   | Port
+| Name                                                   | Type     | Description         
+| ------------------------------------------------------ | -------- | ------------
+| tmpFolder = '%default_tmp_folder%/nthread_generated'   | String   | Temporary folder used to save js code 
+| secure = false                                         | Boolean  | Use protocol http or https
+| debug = false                                          | Boolean  | Enable debug
+| socket = undefined                                     | Object   | [Socket.IO API](https://socket.io/docs/server-api/)
+| server = undefined                                     | Object   | [http API](https://nodejs.org/api/http.html) [https API](https://nodejs.org/api/https.html)
 
-## Functions from Parent in Main Thread
+## Functions from `Nthread`
+  
+`Nthread` is the return of `listen` function, to create new threads and manage them.  
+  
+| Name                                    | Return            | Description         
+| ----------------------------------------| ------------------| ------------
+| getPublicUri()                          | String            | Retrieve public uri
+| getLocalUri()                           | String            | Retrieve local uri
+| getByGuuid()                            | Object: CThread   | Retrieve CThread by Guuid
+| send(any: content)                      | Undefined         | Send a message to all threads
+| response(function: callback)            | Promise: any      | Call back for each response from any threads
+| createFromIO(object: Socket.Io Client)  | Promise: CThread  | Create a new thread from Socket.Io Client
+| create(code: string)                    | Promise: CThread  | Create a new thread from a lambda
+| load(string: file_path)                 | Promise: CThread  | Create a new thread from a file with a lambda inside
+| close()                                 | Undefined         | Close every connection of each thread
 
-| Name                                                    | Type              | Description         
-| ------------------------------------------------------- | ------------------| ------------
-| ip                                                      | String            | Get public ip
-| localIp                                                 | String            | Get local ip
-| port                                                    | String            | Get port
-| address                                                 | String            | Get public uri
-| localAddress                                            | String            | Get local uri
-| connect(string: uri, any: param1, ...) : Promise        | Function: Promise | Create a new connection to an external app
-| create(function: callback, any: param1, ...) : Promise  | Function: Promise | Create a new thread from the callback
-| load(string: filePath, any: param1, ...) : Promise      | Function: Promise | Create a new thread from the file
-| connection(function: callback) : Promise                | Function: Promise | Event called for each new external connection
-| exit(number: code = 0)                                  | Function          | Close all thread and all connection
+## Functions from `CThread`
+  
+`CThread` is the return after the promise of `create/createFromIO/load` function, to create new threads and manage the current thread from main thread.
 
+| Name                                    | Return            | Description         
+| ----------------------------------------| ------------------| ------------
+| getPid()                                | Number            | Retrieve pid of the thread
+| getGuuid()                              | String            | Retrieve Guuid of CThread
+| send(any: content)                      | Undefined         | Send a message to the current thread
+| response(function: callback)            | Promise: any      | Call back response from the current thread
+| on(string: instruction)                 | Undefined         | Retrieve evenements sent by thread process (stdout, stderr, disconnect)
+| close()                                 | Undefined         | Close the connection of the current thread
 
-## Functions from Children in Main Thread
+## Functions from the parameter `thread` in `create/createFromIO/load` callback
 
-| Name                                     | Type              | Description         
-| ---------------------------------------- | ------------------| ------------
-| guid                                     | String            | Get guid of child
-| params                                   | String            | Recover your initial parameters set from child thread
-| send(any: data)                          | Function          | Send data to the child thread
-| response(function: callback) : Promise   | Function: Promise | Event called for each response from child thread
-| ready(function: callback) : Promise      | Function: Promise | Event called when the child has finished to initialised
-| stdout(function: callback) : Promise     | Function: Promise | Event called when the child thread write in process (ex: console.log)
-| stderr(function: callback) : Promise     | Function: Promise | Event called when the child thread have an error in process (ex: console.error)
-| exit(function: callback) : Promise       | Function: Promise | Event called when the child thread process has exit
-| disconnect()                             | Function          | Close child connection
+`thread` is the first parameter of the `create/createFromIO/load` callback, the code inside is running in another process, the thread. 
 
-## Functions in Children Thread
+| Name                                    | Return            | Description         
+| ----------------------------------------| ------------------| ------------
+| getPid()                                | Number            | Retrieve pid of the thread
+| getGuuid()                              | String            | Retrieve Guuid of CThread
+| log()                                   | Undefined         | Log a message directly in the main thread
+| send(any: content)                      | Undefined         | Send a message to the main thread
+| response(function: callback)            | Promise: any      | Call back response from the thread
+| on(string: instruction)                 | Undefined         | Retrieve evenements sent by thread process (disconnect)
+| close()                                 | Undefined         | Close the connection of the thread
 
-| Name                                     | Type              | Description         
-| ---------------------------------------- | ------------------| ------------
-| params                                   | Array             | Recover your initial parameters sent from main thread 
-| send(any: data)                          | Function          | Send data to the main thread
-| response(function: callback) : Promise   | Function: Promise | Wait response from the main thread
+## 📝 Usage `connect(string: uri, object: options = undefined)`
+
+## `Options`
+
+| Name                                                   | Type     | Description         
+| ------------------------------------------------------ | -------- | ------------
+| guuid = null                                           | String   | Set a nthread-js guuid
+| debug = false                                          | Boolean  | Enable debug
+| socket = undefined                                     | Object   | [Socket.IO API](https://socket.io/docs/server-api/)
+unctions from `CThread`
+  
+`CThread` is the return after the promise of `connect` function, to manage the thread and communicate with the main thread.
+
+| Name                                    | Return            | Description         
+| ----------------------------------------| ------------------| ------------
+| getPid()                                | Number            | Retrieve pid of the thread
+| getGuuid()                              | String            | Retrieve Guuid of CThread
+| log()                                   | Undefined         | Log a message directly in the main thread
+| send(any: content)                      | Undefined         | Send a message to the main thread
+| response(function: callback)            | Promise: any      | Call back response from the thread
+| on(string: instruction)                 | Undefined         | Retrieve evenements sent by thread process (disconnect)
+| close()                                 | Undefined         | Close the connection of the thread

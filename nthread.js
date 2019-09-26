@@ -1,203 +1,334 @@
-const fs = require('fs');
-const publicIp = require('public-ip');
-const getPort = require('get-port');
-const http = require('http');
-const io = require('socket.io');
-const spawn = require('child_process').spawn;
-const uuidv4 = require('uuid/v4');
-const tempDir = require('temp-dir');
-const eventm = require('eventm');
+const processExists = require("process-exists");
+const tempDir = require("temp-dir");
+const uuidv4 = require("uuid/v4");
+const fs = require("fs");
+const publicIp = require("public-ip");
+const getPort = require("get-port");
+const spawn = require("child_process").spawn;
+const http = require("http");
+const https = require("https");
+const io = require("socket.io");
 
-const cthread = require(__dirname + '/cthread');
+const Eventm = require("eventm");
+const eventm = new Eventm();
 
+let Debug = enable => msg => (enable ? console.log(msg) : null);
+const DebugExit = m => { Debug(m),process.exit() };
+  
+const CThread = function(guuid, thread, options) {
+  let client = null;
 
-const $buildCode = (guid, uri) => (threadParams, threadCode) => `
-	require('${__dirname.replace(/\\/g, '/')}/cthread')({
-		guid: "${guid}",
-		uri: "${uri}",
-		params: ${threadParams},
-	}).ready(${threadCode});
-`;
+  this.getPid = () => thread ? thread.pid : undefined;
 
-const $childProcess = (options, listThreads) => function(guid, params)
-{
-	this.guid = guid;
-	this.params = params;
+  this.getGuuid = () => guuid;
 
-	this.send = (data) =>
-	{
-		if (!listThreads[guid].serverStatus) {
-			return eventm(`child_${guid}`).on('ready', () => listThreads[guid].socket.emit('msg', {
-				content: data,
-			}));
-		}
-		listThreads[guid].socket.emit('msg', {
-			content: data,
-		});
-		return this;
-	}
-	
-	this.on = eventm(`child_${guid}`).on;
-	
-	this.ready = (cb) => eventm(`child_${guid}`).on('ready', cb, { onlyData: true, cache: true, promise: true });
-	
-	this.response = (cb) => eventm(`child_${guid}`).on('response', cb, { onlyData: true, promise: true });
-	
-	this.stdout = (cb) => eventm(`child_${guid}`).on('stdout', cb, { isUnique: false, onlyData: true, promise: true });
-	
-	this.stderr = (cb) => eventm(`child_${guid}`).on('stderr', cb, { isUnique: false, onlyData: true, promise: true });
-	
-	this.exit = (cb) => eventm(`child_${guid}`).on('exit', cb, { isUnique: false, onlyData: true, cache: true });		
-	
-	this.disconnect = () => {
-		if (listThreads[guid].serverStatus) {
-			listThreads[guid].socket.disconnect();
-		}
-		listThreads[guid].socket = null;
-		listThreads[guid].serverStatus = false;
-		listThreads[guid].process = null;
-		if (listThreads[guid].spawn) {
-			listThreads[guid].spawn.stdin.pause();
-			listThreads[guid].spawn.kill();
-			listThreads[guid].spawn = null;
-		}
-	};
+  this.send = content => client.emit("msg", { content });
+
+  this.response = cb => eventm.getEvent(`thread_${guuid}_msg`).push(cb);
+
+  this.on = (instruction, cb) => {
+    switch (instruction) {
+      case "disconnect":
+        return eventm
+          .getEvent(`thread_${guuid}_disconnect`)
+          .push(cb);
+        break;
+      case "stdout":
+        return eventm
+          .getEvent(`thread_${guuid}_process_stdout`)
+          .push(cb);
+        break;
+      case "stderr":
+        return eventm
+          .getEvent(`thread_${guuid}_process_stderr`)
+          .push(cb);
+        break;
+    }
+  };
+
+  this.close = () => {
+    Debug(`[nthread] - closing "${guuid}" thread`);
+    if (client) {
+      client.disconnect();
+    }
+    if (fs.existsSync(`${options.tmpFolder}/${guuid}.js`)) {
+      fs.unlinkSync(`${options.tmpFolder}/${guuid}.js`);
+    }
+    if (thread) {
+      processExists(thread.pid).then(exists =>
+        exists ? process.kill(thread.pid) : null
+      );
+    }
+  };
+
+  eventm
+    .getEvent(`thread_${guuid}_disconnect`)
+    .push(() => this.close());
+
+  eventm
+    .getEvent(`thread_${guuid}_process_close`)
+    .push(() => this.close());
+
+  return clt => {
+    client = clt;
+    return this;
+  };
 };
 
-const generateIdentity = (listThreads) => (isExternal) => {
-	let guid = uuidv4();
-	listThreads[guid] = {
-		guid: guid,
-		serverStatus: false,
-		spawn: null,
-		socket: null,
-		process: null,
-		isExternal: isExternal,
-	};
-	return guid;
-}
+const CThreadCreate = function(guuid, thread_code, options) {
+  const initTemporaryFile = () => {
+    const location_file = `${options.tmpFolder}/${guuid}.js`;
+    if (!fs.existsSync(options.tmpFolder)) {
+      fs.mkdirSync(options.tmpFolder);
+    }
+    fs.writeFileSync(
+      location_file,
+      `require('${__dirname.replace(/\\/g, "/")}/cthread')("${
+        options.local_uri
+      }", {
+        guuid: "${guuid}",
+        debug: ${options.debug}
+      }).then(${thread_code});`
+    );
+    return location_file;
+  };
 
-const $parentProcess = (options, listThreads) => function(ip, port)
-{
-	this.options = options;
+  const initThread = () => {
+    const thread = spawn("node", [`${options.tmpFolder}/${guuid}.js`]);
 
-	this.connect = async (...arguments) => cthread({
-		guid: null,
-		uri: arguments[0],
-		sendParams: arguments.filter((value, key) => key !== 0),
-	}).ready();
+    thread.stdout.on("data", data => {
+      Debug(`[nthread] - thread "${guuid}" stdout => ${data.toString()}`);
+      eventm
+        .getEvent(`thread_${guuid}_process_stderr`)
+        .resolveForced(data.toString());
+    });
 
-	if (!options.enableSocket) {
-		return this;
-	}
+    thread.stderr.on("data", data => {
+      Debug(`[nthread] - thread "${guuid}" stderr => ${data.toString()}`);
+      eventm
+        .getEvent(`thread_${guuid}_process_stderr`)
+        .resolveForced(data.toString());
+    });
 
-	this.ip = ip;
-	this.localIp = '127.0.0.1';
-	this.port = port;
-	this.address = `${options.protocol}${ip}:${port}`;
-	this.localAddress = `${options.protocol}${this.localIp}:${port}`;
+    thread.on("exit", data => {
+      Debug(`[nthread] - thread "${guuid}" exit => ${data.toString()}`);
+      eventm
+        .getEvent(`thread_${guuid}_process_exit`)
+        .resolveForced(data.toString());
+    });
 
-	this.connection = async (cb) => eventm('mparent').on('connection', cb, { isUnique: false, onlyData: true, promise: true });
+    thread.on("close", () => {
+      Debug(`[nthread] - thread "${guuid}" close`);
+      eventm.getEvent(`thread_${guuid}_process_close`).resolveForced();
+    });
+    return thread;
+  };
 
-	const createChild = (...arguments) => (isFile) => {
-		let threadCode = (isFile === true ? fs.readFileSync(arguments[0]).toString() : arguments[0]);
-		let threadParams = arguments.filter((value, key) => key !== 0);
-		let guid = generateIdentity(listThreads)(false);
-
-		fs.writeFileSync(`${tempDir}/${options.tmpFolder}/${guid}.js`, $buildCode(guid, this.localAddress)(JSON.stringify(threadParams), threadCode.toString()));
-
-		listThreads[guid].spawn = spawn('node', [`${tempDir}/${options.tmpFolder}/${guid}.js`]);
-		listThreads[guid].spawn.stdout.on('data', async (data) => eventm(`child_${guid}`).resolve('stdout', data.toString()));
-		listThreads[guid].spawn.stderr.on('data', async (data) => eventm(`child_${guid}`).resolve('stderr', data.toString()));
-		listThreads[guid].spawn.on('exit', async (data) => eventm(`child_${guid}`).resolve('exit', (data ? data.toString() : null)));
-		listThreads[guid].spawn.on('close', async () => fs.unlinkSync(`${tempDir}/${options.tmpFolder}/${guid}.js`));
-		listThreads[guid].process = new ($childProcess(options, listThreads))(guid);
-
-		return listThreads[guid].process;
-	};
-
-	this.create = async (...arguments) => createChild(...arguments)(false);
-	
-	this.load = async (...arguments) => createChild(...arguments)(true);
-	
-	this.exit = async (code) => {
-		for (var guid in listThreads) {
-			await listThreads[guid].process.disconnect();
-		}
-		process.exit(code || 0);
-	};
+  initTemporaryFile();
+  const thread = initThread();
+  const cthread = new CThread(guuid, thread, options);
+  
+  return new Promise((resolve, reject) =>
+    eventm.getEvent(`thread_${guuid}`)
+      .getPromise()
+      .then(client => resolve(cthread(client)))
+      .catch(e => reject(e))
+  );
 };
 
-const $process = async (options) =>
+const NThreadGenerateIdentity = () =>
 {
-	options = (options ? options : {});
-	options.tmpFolder = 'generated';
-	options.protocol = (options.protocol ? options.protocol : 'http://');
-	options.enableSocket = (options.enableSocket !== undefined ? options.enableSocket : true);
+  const guuid = uuidv4();
+  eventm.create(
+    `thread_${guuid}`,
+    null,
+    { promise: true }
+  );
+  eventm.create(
+    `thread_${guuid}_msg`,
+    null,
+    { keepSession: false, promise: true }
+  );
+  eventm.create(
+    `thread_${guuid}_disconnect`,
+    null,
+    { keepSession: false }
+  );
+  eventm.create(
+    `thread_${guuid}_process_stdout`,
+    null,
+    { keepSession: false }
+  );
+  eventm.create(
+    `thread_${guuid}_process_stderr`,
+    null,
+    { keepSession: false }
+  );
+  eventm.create(
+    `thread_${guuid}_process_exit`,
+    null,
+    { keepSession: false }
+  );
+  eventm.create(
+    `thread_${guuid}_process_close`,
+    null,
+    { keepSession: false }
+  );
+  return guuid;
+};
 
-	if (!options.enableSocket) {
-		return eventm('mroot').resolve('ready', new ($parentProcess(options))());	
-	}
+const Nthread = function(server, socket, options) {
+  eventm.create(`thread_msg`, null, { keepSession: false, promise: true });
 
-	let listThreads = {};
+  const listThreads = [];
+  
+  this.getPublicUri = () => options.public_uri;
 
-	let ip = await publicIp.v4().catch(err => '127.0.0.1');
-	let port = (options.port ? options.port : await getPort());
+  this.getLocalUri = () => options.local_uri;
 
-	let server = http.createServer();
-	let socket = io(server);
+  this.getByGuuid = guuid =>
+    listThreads.reduce((acc, cval) =>
+      (cval.getGuuid() === guuid ? cval : acc)
+    , null);
 
-	if (!fs.existsSync(`${tempDir}/${options.tmpFolder}`)) {
-		fs.mkdirSync(`${tempDir}/${options.tmpFolder}`);
-	}
+  this.send = data =>
+    listThreads.map(thread =>
+      thread.send(data)
+    );
 
-	socket.on('connection', function(client)
-	{
-		let clientGuid = null;
+  this.response = cb => eventm.getEvent(`thread_msg`).push(cb);
 
-		client.on('hello', (data) =>
-		{
-			if (clientGuid !== null) return ;
+  this.createFromIO = client => {
+    const guuid = NThreadGenerateIdentity();
+    const cthread = new CThread(guuid, null, options)(client);
+    listThreads.push(cthread);
+    return cthread;
+  };
 
-			if (data.guid === null || !listThreads[data.guid]) {
-				data.guid = generateIdentity(listThreads)(true);
-			}
+ this.create = thread_code => {
+    const guuid = NThreadGenerateIdentity();
+    return new CThreadCreate(guuid, thread_code, options)
+      .then(cthread => {
+        listThreads.push(cthread);
+        return cthread;
+      });
+  };
 
-			clientGuid = data.guid;
-			listThreads[clientGuid].serverStatus = true;
-			listThreads[clientGuid].socket = client;
-			client.emit('hello');
+  this.load = file => this.create(fs.readFileSync(file).toString());
 
-			(listThreads[clientGuid].isExternal
-			? eventm('mparent').resolve('connection', new ($childProcess(options, listThreads))(data.guid, data.params))
-			: eventm(`child_${clientGuid}`).resolve('ready'));
-		});
-		
-		client.on('msg', (data) => {
-			if (clientGuid === null) {
-				return ;
-			}
-			eventm(`child_${clientGuid}`).resolve('response', data.content);
-		});
+  this.close = async () => {
+    Debug(`[nthread] - closing all threads and server`);
+    listThreads.map(thread => thread.close());
+    // socket.close();
+    server.close();
+    server.isClose = true;
+  };
 
-		client.on('disconnect', async () => {
-			if (listThreads[clientGuid].process) {
-				await listThreads[clientGuid].process.disconnect();	
-			}
-			delete listThreads[clientGuid];
-			clientGuid = null;
-		});
-	});
+  process.on('exit', () => this.close());
+  process.on('SIGINT', DebugExit);
+  process.on('SIGUSR1', DebugExit);
+  process.on('SIGUSR2', DebugExit);
+  process.on('uncaughtException', DebugExit);
 
-	server.listen(port, (err, data) => (err
-		? eventm('mroot').reject('ready', err)
-		: eventm('mroot').resolve('ready', new ($parentProcess(options, listThreads))(ip, port))
-	));
+  return this;
+};
 
-	return  eventm('mroot').on('ready');
-}
+const NThreadListen = async function(port, options) {
+  options = options || {};
+  options = {
+    local_ip: '127.0.0.1',
+    debug: options.debug === true || false,
+    tmpFolder: options.tmpFolder || `${tempDir}/nthread_generated`,
+    protocol: options.secure === true ? "http://" : "https://"
+  };
 
-module.exports = (options) => ({
-	$process: $process(options),
-	ready: (cb) => eventm('mroot').on('ready', cb, { isUnique: false, onlyData: true, cache: true, promise: true }),
-});
+  Debug = Debug(options.debug);
+  Debug("[nthread] - Running NThreadListen");
+
+  let nthread = null;
+  const initServer = async () => {
+    const server = (options.protocol === "https://"
+      ? https
+      : http
+    ).createServer(options.server);
+    options.port = port || (await getPort().catch(err => 6666));
+    options.public_ip = await publicIp.v4().catch(err => options.local_ip);
+    options.public_uri = `${options.protocol}${options.public_ip}:${options.port}`;
+    options.local_uri = `${options.protocol}${options.local_ip}:${options.port}`;
+    server.listen(options.port, (err, data) => {
+      if (err) {
+        Debug("[nthread] - Server listen failed");
+        return eventm.getEvent("listen").reject(err);
+      }
+      Debug("[nthread] - Server listen at : " + port);
+      nthread = new Nthread(this.server, this.socket, options);
+      return eventm.getEvent("listen").resolve(nthread);
+    });
+    return server;
+  };
+
+  const initSocket = async () => {
+    const socket = io(this.server, options.socket);
+    socket.on("connection", client => {
+      let client_guuid = null;
+      let client_event = null;
+      Debug("[nthread] - Socket client new connection");
+
+      client.on("hello", async data => {
+        client_guuid = data.guuid;
+        client_event = eventm.getEvent(`thread_${client_guuid}`);
+        
+        Debug("[nthread] - Socket client received 'hello' from " + client_guuid);
+        if (!client_guuid || !client_event) {
+          Debug(`[nthread] - Socket client new client detected. Creation of his prototype...`);
+          const thread = await nthread.createFromIO(client);
+          client_guuid = thread.getGuuid();
+          client_event = eventm.getEvent(`thread_${client_guuid}`);
+          Debug(`[nthread] - Socket client welcome to the new client "${client_guuid}"`);
+        }
+        client.emit("hello", {
+          guuid: client_guuid
+        });
+      });
+
+      client.on("ready", data => {
+        if (!client_event) return ;
+        Debug("[nthread] - Socket client received 'ready' from " + client_guuid);
+        eventm.getEvent(`thread_${client_guuid}`).resolve(client);
+      });
+
+      client.on("msg", data => {
+        if (!client_event) return ;
+        Debug("[nthread] - Socket client received 'msg' from " + client_guuid);
+        eventm.getEvent(`thread_${client_guuid}_msg`).resolveForced(data.content);
+        eventm.getEvent(`thread_msg`).resolveForced({
+          guuid: client_guuid,
+          content: data.content
+        });
+      });
+
+      client.on("log", data => {
+        if (!client_event) return ;
+        Debug("[nthread] - Socket client received 'log' from " + client_guuid);
+        console.log(data.content);
+      });
+
+      client.on("disconnect", () => {
+        if (!client_event) return ;
+        Debug("[nthread] - Socket client received 'disconnect' from " + client_guuid);
+        eventm.getEvent(`thread_${client_guuid}_disconnect`).resolve();
+      });
+    });
+    // socket.listen(); // futur?
+    return socket;
+  };
+
+  const listen = eventm.create("listen", null, { promise: true });
+
+  this.server = await initServer();
+  this.socket = await initSocket();
+
+  return listen;
+};
+
+module.exports = NThreadListen;

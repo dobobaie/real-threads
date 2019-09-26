@@ -1,6 +1,9 @@
-async (thread) => {
-	let params = thread.params;
-	thread.send(`Now I'm sending child params : ${JSON.stringify(params)}`);
-	let pres = await thread.response();
-	console.log('CHILD', pres);
+thread => {
+  thread.log('[child] - Child is now connected with PID: ' + thread.getPid());
+
+  thread.response(content => {
+    thread.log('[child] - message read from thread : "', content, '"');
+  });
+
+  thread.send("Hello I'm Child =)");
 }
