@@ -1,4 +1,4 @@
-thread => {
+module.exports = thread => {
   thread.log('[child] - Child is now connected with PID: ' + thread.getPid());
 
   thread.response(content => {
@@ -6,4 +6,4 @@ thread => {
   });
 
   thread.send("Hello I'm Child =)");
-}
+};

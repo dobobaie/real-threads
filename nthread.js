@@ -12,6 +12,7 @@ const io = require("socket.io");
 const Eventm = require("eventm");
 const eventm = new Eventm();
 
+const R = require;
 let Debug = enable => msg => (enable ? console.log(msg) : null);
 const DebugExit = m => { Debug(m),process.exit() };
   
@@ -28,6 +29,19 @@ const CThread = function(guuid, thread, options) {
 
   this.on = (instruction, cb) => {
     switch (instruction) {
+      case "*":
+        return [
+          eventm
+            .getEvent(`thread_${guuid}_disconnect`)
+            .push(data => cb(data, 'disconnect')),
+          eventm
+            .getEvent(`thread_${guuid}_process_stdout`)
+            .push(data => cb(data, 'stdout')),
+          eventm
+            .getEvent(`thread_${guuid}_process_stderr`)
+            .push(data => cb(data, 'stderr'))
+        ];
+        break;
       case "disconnect":
         return eventm
           .getEvent(`thread_${guuid}_disconnect`)
@@ -214,7 +228,7 @@ const Nthread = function(server, socket, options) {
       });
   };
 
-  this.load = file => this.create(fs.readFileSync(file).toString());
+  this.load = file => this.create(R(file));
 
   this.close = async () => {
     Debug(`[nthread] - closing all threads and server`);
@@ -234,12 +248,13 @@ const Nthread = function(server, socket, options) {
 };
 
 const NThreadListen = async function(port, options) {
-  options = options || {};
+  options = options || (typeof(port) === 'object' && port) || {};
   options = {
     local_ip: '127.0.0.1',
     debug: options.debug === true || false,
-    tmpFolder: options.tmpFolder || `${tempDir}/nthread_generated`,
-    protocol: options.secure === true ? "http://" : "https://"
+    tmpFolder: options.tmpFolder || `${tempDir}/nthread_generate2d`,
+    protocol: options.secure === true ? "https://" : "http://",
+    port: options.port || (typeof(port) !== 'object' && port) || undefined
   };
 
   Debug = Debug(options.debug);
@@ -251,7 +266,7 @@ const NThreadListen = async function(port, options) {
       ? https
       : http
     ).createServer(options.server);
-    options.port = port || (await getPort().catch(err => 6666));
+    options.port = options.port || (await getPort().catch(err => 6666));
     options.public_ip = await publicIp.v4().catch(err => options.local_ip);
     options.public_uri = `${options.protocol}${options.public_ip}:${options.port}`;
     options.local_uri = `${options.protocol}${options.local_ip}:${options.port}`;
@@ -260,7 +275,7 @@ const NThreadListen = async function(port, options) {
         Debug("[nthread] - Server listen failed");
         return eventm.getEvent("listen").reject(err);
       }
-      Debug("[nthread] - Server listen at : " + port);
+      Debug("[nthread] - Server listen at : " + options.port);
       nthread = new Nthread(this.server, this.socket, options);
       return eventm.getEvent("listen").resolve(nthread);
     });
