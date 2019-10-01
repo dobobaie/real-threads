@@ -8,8 +8,8 @@ let Debug = enable => msg => (enable ? console.log(msg) : null);
 const DebugExit = m => { Debug(m),process.exit() };
 
 const CThread = function(socket, options) {
-  eventm.create("cthread_msg", null, { keepSession: false });
-  eventm.create("cthread_disconnect", null, { keepSession: false });
+  eventm.create("cthread_msg", { keepSession: false });
+  eventm.create("cthread_disconnect", { keepSession: false });
 
   this.getPid = () => process.pid;
 
@@ -113,9 +113,9 @@ const NThreadConnect = function(uri, options)
     });
   }
 
-  const connection = eventm.create("connection", null, { promise: true });
+  const connection = eventm.create("connection");
   initConnection();
-  return connection;
+  return connection.getPromise();
 }
 
 module.exports = NThreadConnect;

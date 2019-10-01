@@ -153,46 +153,18 @@ const CThreadCreate = function(guuid, thread_code, options) {
 const NThreadGenerateIdentity = () =>
 {
   const guuid = uuidv4();
-  eventm.create(
-    `thread_${guuid}`,
-    null,
-    { promise: true }
-  );
-  eventm.create(
-    `thread_${guuid}_msg`,
-    null,
-    { keepSession: false, promise: true }
-  );
-  eventm.create(
-    `thread_${guuid}_disconnect`,
-    null,
-    { keepSession: false }
-  );
-  eventm.create(
-    `thread_${guuid}_process_stdout`,
-    null,
-    { keepSession: false }
-  );
-  eventm.create(
-    `thread_${guuid}_process_stderr`,
-    null,
-    { keepSession: false }
-  );
-  eventm.create(
-    `thread_${guuid}_process_exit`,
-    null,
-    { keepSession: false }
-  );
-  eventm.create(
-    `thread_${guuid}_process_close`,
-    null,
-    { keepSession: false }
-  );
+  eventm.create(`thread_${guuid}`);
+  eventm.create(`thread_${guuid}_msg`, { keepSession: false });
+  eventm.create(`thread_${guuid}_disconnect`, { keepSession: false });
+  eventm.create(`thread_${guuid}_process_stdout`, { keepSession: false });
+  eventm.create(`thread_${guuid}_process_stderr`, { keepSession: false });
+  eventm.create(`thread_${guuid}_process_exit`, { keepSession: false });
+  eventm.create(`thread_${guuid}_process_close`, { keepSession: false });
   return guuid;
 };
 
 const Nthread = function(server, socket, options) {
-  eventm.create(`thread_msg`, null, { keepSession: false, promise: true });
+  eventm.create(`thread_msg`, { keepSession: false });
 
   const listThreads = [];
   
@@ -338,12 +310,12 @@ const NThreadListen = async function(port, options) {
     return socket;
   };
 
-  const listen = eventm.create("listen", null, { promise: true });
+  const listen = eventm.create("listen");
 
   this.server = await initServer();
   this.socket = await initSocket();
 
-  return listen;
+  return listen.getPromise();
 };
 
 module.exports = NThreadListen;

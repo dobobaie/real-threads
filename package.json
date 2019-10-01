@@ -1,6 +1,6 @@
 {
   "name": "nthread-js",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Create easily threads in NodeJs",
   "main": "index.js",
   "scripts": {
@@ -24,7 +24,7 @@
   "author": "Dobobaie",
   "license": "ISC",
   "dependencies": {
-    "eventm": "1.2.1",
+    "eventm": "1.3.0",
     "get-port": "^5.0.0",
     "process-exists": "^3.1.0",
     "public-ip": "^3.2.0",
