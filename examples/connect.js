@@ -1,16 +1,16 @@
-const { connect } = require('../index');
+/*
+  unavailable: It is a good idea to do?
+*/
 
-console.log("[root] - Run connect");
+const { Child } = require('../lib/index');
 
-connect("http://127.0.0.1:3000", { debug: false })
-  .then(thread => {
-    console.log("[root] - Client connected from " + thread.getGuuid());
-
-    thread.response(content => {
-      console.log('[root] - message read from thread : "', content, '"');
-    });
-
-    thread.send("Hello world =)");
-
-    // thread.close();
+const child = new Child({ debug: true });
+child.connect("http://127.0.0.1:3000").then(async thread => {
+  thread.log('[child] - is now connected with PID: ' + thread.getPid());
+  
+  thread.response(content => {
+    console.log("[child] - response", content);
+    content === "Hello" ? thread.emit('Hi back !') : thread.emit('Fine and you?');
   });
+});
+
