@@ -18,7 +18,8 @@ parent.listen(3000).then(async nthread => {
 
   child.emit('Hello');
 
-  child.response(content => {
+  // child.response(content => {
+  nthread.response(({ client }, content) => {
     console.log("[root] - response", content)
     content === "Hi back !" ? child.emit('How are you ?') : null;
   });
