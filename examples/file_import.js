@@ -1,9 +1,8 @@
 module.exports = thread => {
-  thread.log('[child] - Child is now connected with PID: ' + thread.getPid());
-
+  thread.log('[child] - is now connected with PID: ' + thread.getPid());
+  
   thread.response(content => {
-    thread.log('[child] - message read from thread : "', content, '"');
+    console.log("[child] - response", content);
+    content === "Hello" ? thread.emit('Hi back !') : thread.emit('Fine and you?');
   });
-
-  thread.send("Hello I'm Child =)");
 };

@@ -14,43 +14,31 @@ $ npm install nthread-js
 ## ⚙️ Examples
 
 ``` js  
-const { listen } = require('nthread-js');
+const { Parent } = require('../lib/index');
 
-console.log("[root] - Run listen");
+const parent = new Parent({ debug: true });
+parent.listen(3000).then(async nthread => {
 
-listen() // listen(string: port = random port, object: options = undefined)
-  .then(async nthread => {
-    console.log("[root] - Server connected");
-    console.log("[root] - public uri", nthread.getPublicUri());
-    console.log("[root] - local uri", nthread.getLocalUri());
+  console.log("[root] - Server connected");
+  console.log("[root] - public uri", nthread.getPublicUri());
+  console.log("[root] - local uri", nthread.getLocalUri());
 
-    nthread.response(data => { // retrieve all communication
-      console.log('[root] - message read from nthread : "', data.content, '" by "', data.guuid, '"');
-      nthread.getByGuuid(data.guuid).send("Welcome from root =)");
-    });
-
-    // ---
-    const child = await nthread.create(thread => { // create new thread
-      // CODE EXECUTED IN HIS OWN THREAD
-      thread.log('[child] - Child is now connected with PID: ' + thread.getPid()); // log a message to the main thread
-
-      thread.response(content => { // retrieve communication from main thread
-        thread.log('[child] - message read from thread : "', content, '"');
-      });
-
-      thread.send("Hello I'm Child =)"); // send a message to the main thread
-      // END
-    });
+  const child = await nthread.create(thread => {
+    thread.log('[child] - is now connected with PID: ' + thread.getPid());
     
-    child.response(content => { // retrieve only the communication from the child
-      console.log('[root] - message read from child : "', content, '"');
+    thread.response(content => {
+      console.log("[child] - response", content);
+      content === "Hello" ? thread.emit('Hi back !') : thread.emit('Fine and you?');
     });
-    // ---
-
-    nthread.getByGuuid(child.getGuuid()).send("Hey Child, how are you?"); // send a message to the child thread
-
-    // nthread.close(); // close all threads
   });
+
+  child.emit('Hello');
+
+  child.response(content => {
+    console.log("[root] - response", content)
+    content === "Hi back !" ? child.emit('How are you ?') : null;
+  });
+});
 ```
 
 [More examples](https://github.com/dobobaie/nthread-js/tree/master/examples)

@@ -1,28 +1,18 @@
-const { listen } = require("../index");
+const { Parent } = require('../lib/index');
 
-console.log("[root] - Run listen");
+const parent = new Parent({ debug: true });
+parent.listen(3000).then(async nthread => {
 
-listen().then(async nthread => {
   console.log("[root] - Server connected");
   console.log("[root] - public uri", nthread.getPublicUri());
   console.log("[root] - local uri", nthread.getLocalUri());
 
-  nthread.response(data => {
-    console.log('[root] - message read from nthread : "', data.content, '" by "', data.guuid, '"');
-    nthread.getByGuuid(data.guuid).send("Welcome from root =)");
+  const child = await nthread.load(__dirname + '/file_import');
+
+  child.emit('Hello');
+
+  child.response(content => {
+    console.log("[root] - response", content)
+    content === "Hi back !" ? child.emit('How are you ?') : null;
   });
-
-  // ---
-  const child = await nthread.load(__dirname + "/file_import.js");
-
-  child.on("*", (message, from) => console.log(from, message));
-
-  child.response(content =>
-    console.log('[root] - message read from child : "', content, '"')
-  );
-  // ---
-
-  nthread.getByGuuid(child.getGuuid()).send("Hey Child, how are you?");
-
-  // nthread.close();
 });

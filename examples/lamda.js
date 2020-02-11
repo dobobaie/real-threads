@@ -12,13 +12,14 @@ parent.listen(3000).then(async nthread => {
     
     thread.response(content => {
       console.log("[child] - response", content);
-      thread.emit('Hi back !');
+      content === "Hello" ? thread.emit('Hi back !') : thread.emit('Fine and you?');
     });
   });
 
   child.emit('Hello');
 
-  child.response(content =>
+  child.response(content => {
     console.log("[root] - response", content)
-  );
+    content === "Hi back !" ? child.emit('How are you ?') : null;
+  });
 });
