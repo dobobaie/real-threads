@@ -1,10 +1,9 @@
 # Nthread JS
-Create easily threads in NodeJs. The purpose is to delegate some part of your code in own processus.  
-It means that the code is executed in another process, thread, and give you the possibility to communicate with the main thread.
+Create easily children thread (process) in NodeJs. The purpose is to delegate some part of your code in another process.  
   
 ⚠ Be careful ⚠  
 Don't try to make an infinite loop during the creation of the thread.  
-Obviously, your server/computer will be affected by the number of threads.  
+Obviously, your server/computer will be affected by the number of threads and... cash.  
 
 ## ☁️ Installation
 
