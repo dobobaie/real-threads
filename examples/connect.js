@@ -1,7 +1,3 @@
-/*
-  unavailable: It is a good idea to do?
-*/
-
 const { Child } = require('../lib/index');
 
 const child = new Child({ debug: true });

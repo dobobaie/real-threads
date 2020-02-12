@@ -1,11 +1,13 @@
 const { Parent } = require('../lib/index');
 
-const parent = new Parent({ debug: true });
+const parent = new Parent({ debug: false });
 parent.listen(3000).then(async nthread => {
 
   console.log("[root] - Server connected");
   console.log("[root] - public uri", nthread.getPublicUri());
   console.log("[root] - local uri", nthread.getLocalUri());
+
+  nthread.on('*', content => console.log(content));
 
   const child = await nthread.create(thread => {
     thread.log('[child] - is now connected with PID: ' + thread.getPid());
